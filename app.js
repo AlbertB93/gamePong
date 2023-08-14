@@ -4,7 +4,7 @@ const ctx = canvas.getContext("2d");
 const CANVAS_HEIGHT = canvas.height;
 const CANVAS_WIDTH = canvas.width;
 
-const BOARD_Y =50;
+const BOARD_Y = 50;
 const BOARD_P1_X = 300;
 const BOARD_P2_X = 500;
 
@@ -16,7 +16,7 @@ const PADDLE_START_Y = (CANVAS_HEIGHT - PADDLE_HEIGHT) / 2;
 const PADDLE_STEP = 3;
 
 const BALL_R = 15;
-const BALL_START_X= CANVAS_WIDTH / 2;
+const BALL_START_X = CANVAS_WIDTH / 2;
 const BALL_START_Y = CANVAS_HEIGHT / 2;
 const BALL_START_DX = 4.5; // początkowa prędkość lotu piłeczki po x
 const BALL_START_DY = 1.5;  // początkowa prędkość lotu piłeczki po y
@@ -34,203 +34,243 @@ const P2_DOWN_BUTTON = 'KeyL';
 const PAUSE_BUTTON = "KeyB";
 
 
-coerceIn = (value, min, max) =>{
-    if (value <=min){
+function coerceIn (value, min, max) {
+    if (value <= min) {
         return min;
-    } else if ( value>=max) {
+    } else if (value >= max) {
         return max;
     } else {
         return value;
     }
 }
 
-isInBetween = (value, min, max) => {
+function isInBetween (value, min, max) {
     return value >= min && value <= max;
 }
 
+
 ctx.font = "30px Arial";
 
-
-drawPaddle = (x, y) => {
-    ctx.fillRect(x, y, PADDLE_WIDTH, PADDLE_HEIGHT);
-}
-
-drawPoints = (text, x) => {
+function drawPoints(text, x) {
     ctx.fillText(text, x, BOARD_Y);
 }
 
-drawCircle = (x, y, r) => {
+function drawCircle(x, y, r) {
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2, true);
     ctx.closePath();
     ctx.fill();
 }
 
-drawBall = (x, y) => {
-    drawCircle(x, y, BALL_R)
-}
-
-clearCanvas = () =>{
+function clearCanvas (){
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
 
-// input
+class Ball {
+    constructor() {
+        this.x = BALL_START_X;
+        this.y = BALL_START_Y;
+        this.dx = BALL_START_DX;
+        this.dy = BALL_START_DY;
+    }
 
-let p1Action = STOP_ACTION;
-let p2Action = STOP_ACTION;
-let paused = false;
+    move(p1, p2) {
+
+        if (this.shouldBounceFromTopWall() ||
+            this.shouldBounceFromBottomWall()) {
+            this.bounceFromWall();
+        }
+        if (this.shouldBounceFromLeftPaddle(p1.paddle) ||
+            this.shouldBounceFromRightPaddle(p2.paddle)) {
+            this.bounceFromPaddle();
+        }
+        if (this.isOutsideOnLeft()) {
+            this.moveToStart();
+            p2.points++;
+        } else if (this.isOutsideOnRight()) {
+            this.moveToStart();
+            p1.points++;
+        }
+        this.x += this.dx;
+        this.y += this.dy;
+    }
+
+    draw (){
+        drawCircle(this.x, this.y, BALL_R)
+    }
+
+    shouldBounceFromTopWall(){
+        return this.y < BALL_R && this.dy < 0;
+    }
+
+    shouldBounceFromBottomWall() {
+        return this.y + BALL_R > CANVAS_HEIGHT && this.dy > 0;
+    }
+
+    bounceFromWall() {
+        this.dy = -this.dy;
+    }
+
+    bounceFromPaddle() {
+        this.dx = -this.dx;
+    }
+
+    moveToStart(){
+        this.x = BALL_START_X;
+        this.y = BALL_START_Y;
+    }
+
+    isOutsideOnLeft () {
+        return this.x + BALL_R < 0;
+    }
+
+    isOutsideOnRight() {
+        return this.x - BALL_R > CANVAS_WIDTH;
+    }
+
+    isOnTheSameHeightAsPaddle (paddleY) {
+        return isInBetween(this.y, paddleY, paddleY + PADDLE_HEIGHT);
+    }
+
+    shouldBounceFromLeftPaddle(paddle){
+        return this.dx < 0 && 
+        isInBetween(this.x - BALL_R, PADDLE_P1_X, PADDLE_P1_X + PADDLE_WIDTH) && 
+        this.isOnTheSameHeightAsPaddle(paddle.y);
+    }
+
+    shouldBounceFromRightPaddle(paddle) {
+        return this.dx > 0 && 
+        isInBetween(this.x + BALL_R, PADDLE_P2_X, PADDLE_P2_X + PADDLE_WIDTH) && 
+        this.isOnTheSameHeightAsPaddle(paddle.y);
+    }
+
+
+}
  
-window.addEventListener("keydown", (event) => {
-    const code = event.code;
-    if (code === P1_UP_BUTTON) {
-        p1Action = UP_ACTION;
-    } else if (code === P1_DOWN_BUTTON) {
-        p1Action = DOWN_ACTION;
-    } else if (code === P2_UP_BUTTON) {
-        p2Action = UP_ACTION;
-    } else if (code === P2_DOWN_BUTTON) {
-        p2Action = DOWN_ACTION;
-    } else if (code === PAUSE_BUTTON) {
-        paused = !paused;
-    }
-})
-
-window.addEventListener("keyup", (event) => {
-    let code = event.code;
-    if (
-        (code === P1_UP_BUTTON && p1Action === UP_ACTION) ||
-        (code === P1_DOWN_BUTTON && p1Action === DOWN_ACTION)
-    ) {
-        p1Action = STOP_ACTION;
-    } else if (
-        (code === P2_UP_BUTTON && p2Action === UP_ACTION) ||
-        (code === P2_DOWN_BUTTON && p2Action === DOWN_ACTION)
-    ) {
-        p2Action = STOP_ACTION;
-    }
-})
-
-
-//state
-
-let ballX = BALL_START_X;
-let ballY = BALL_START_Y;
-let ballDX = BALL_START_DX;
-let ballDY = BALL_START_DY;
-let p1PaddleY = PADDLE_START_Y;
-let p2PaddleY = PADDLE_START_Y;
-let p1Points = 0;
-let p2Points = 0;
 
 
 
-coercePaddle = (paddleY) => {
-    const minPaddleY = 0;
-    const maxPaddleY = CANVAS_HEIGHT - PADDLE_HEIGHT;
-    return coerceIn(paddleY, minPaddleY, maxPaddleY);
-}
-
-
-movePaddles = () => {
-    if (p1Action === UP_ACTION) {
-        p1PaddleY = coercePaddle(p1PaddleY - PADDLE_STEP);
-    } else if (p1Action === DOWN_ACTION) {
-        p1PaddleY = coercePaddle(p1PaddleY + PADDLE_STEP);
+class Paddle {
+    constructor(paddleX) {
+        this.x = paddleX;
+        this.y = PADDLE_START_Y;
     }
 
-    if (p2Action === UP_ACTION) {
-        p2PaddleY = coercePaddle(p2PaddleY - PADDLE_STEP);
-    } else if (p2Action === DOWN_ACTION) {
-        p2PaddleY = coercePaddle(p2PaddleY + PADDLE_STEP);
+    setY(newY) {
+        const maxPaddleY = 0;
+        const minPaddleY = CANVAS_HEIGHT - PADDLE_HEIGHT;
+        this.y = coerceIn(newY, maxPaddleY, minPaddleY);
+    }
+
+    stepDown() {
+        this.setY(this.y + PADDLE_STEP);
+    }
+    stepUp() {
+        this.setY(this.y - PADDLE_STEP);
+    }
+    draw(){
+        ctx.fillRect(this.x, this.y, PADDLE_WIDTH, PADDLE_HEIGHT);
     }
 }
 
-shouldBounceBallFromTopWall = () => {
-    return ballY < BALL_R && ballDY < 0;
-}
+class Player {
 
-shouldBounceBallFromBottomWall = () => {
-    return ballY + BALL_R > CANVAS_HEIGHT && ballDY > 0;
-}
-
-moveBallByStep = () =>{
-    ballX += ballDX;
-    ballY += ballDY;
-}
-bounceBallFromWall = () => {
-    ballDY = -ballDY;
-}
-
-bounceBallFromPaddle = () => {
-    ballDX = -ballDX;
-}
-
-moveBallToStart = () => {
-    ballX = BALL_START_X;
-    ballY = BALL_START_Y;
-}
-
-ballIsOutsideOnLeft = () => {
-    return ballX + BALL_R < 0;
-}
-
-ballIsOutsideOnRight = () => {
-    return ballX - BALL_R > CANVAS_WIDTH;
-}
-
-isBallOnTheSameHeightAsPaddle = (paddleY) => {
-    return isInBetween(ballY, paddleY, paddleY + PADDLE_HEIGHT);
-}
-
-shouldBounceFromLeftPaddle = () => {
-    return ballDX < 0 && isInBetween ( ballX - BALL_R, PADDLE_P1_X, PADDLE_P1_X + PADDLE_WIDTH) && isBallOnTheSameHeightAsPaddle(p1PaddleY);
-}
-
-shouldBounceFromRightPaddle = () => {
-    return ballDX > 0 && isInBetween(ballX + BALL_R, PADDLE_P2_X, PADDLE_P2_X + PADDLE_WIDTH) && isBallOnTheSameHeightAsPaddle(p2PaddleY);
-}
-
-moveBall = () => {
-
-    if ( shouldBounceBallFromTopWall() || shouldBounceBallFromBottomWall ()){
-        bounceBallFromWall();
-    }
-    if ( shouldBounceFromLeftPaddle() || shouldBounceFromRightPaddle ()) 
-    {
-        bounceBallFromPaddle();
+    constructor(paddleX, boardX) {
+        this.points = 0;
+        this.boardX = boardX;
+        this.action = STOP_ACTION;
+        this.paddle = new Paddle(paddleX);
     }
 
-    if(ballIsOutsideOnLeft()){
-        moveBallToStart();
-        p2Points++;
-    } else if ( ballIsOutsideOnRight ()) {
-        moveBallToStart();
-        p1Points++;
+    makeAction() {
+        if (this.action === UP_ACTION) {
+            this.paddle.stepUp();
+        } else if (this.action === DOWN_ACTION) {
+            this.paddle.stepDown();
+        }
     }
 
-    moveBallByStep();
+    drawPoints() {
+        drawPoints(this.points.toString(), this.boardX);
+    }
+
+    draw() {
+        this.drawPoints();
+        this.paddle.draw();
+    }
+
 }
 
-updateState = () => {
-    moveBall();
-    movePaddles();
-}
+class Game {
 
-drawState = () => {
-    clearCanvas();
-    drawPoints(p1Points.toString(), BOARD_P1_X);
-    drawPoints(p2Points.toString(), BOARD_P2_X);
-    drawBall(ballX, ballY);
-    drawPaddle(PADDLE_P1_X, p1PaddleY);
-    drawPaddle(PADDLE_P2_X, p2PaddleY);
-}
-
-updateAndDrawState = () => {
-    if(paused) return; 
-        updateState();
-        drawState();
     
+
+    constructor() {
+        this.paused = false;
+        this.ball = new Ball();
+        this.p1 = new Player(PADDLE_P1_X, BOARD_P1_X);
+        this.p2 = new Player(PADDLE_P2_X, BOARD_P2_X);
+    }
+
+    nextState() {
+        this.ball.move(this.p1, this.p2);
+        this.p1.makeAction();
+        this.p2.makeAction();
+    }
+
+    drawState () {
+        clearCanvas();
+        this.ball.draw();
+        this.p1.draw();
+        this.p2.draw();
+    }
+
+    updateAndDrawState() {
+        if (this.paused) return;
+        this.nextState();
+        this.drawState();
+    }
+
+    setupControl() {
+        window.addEventListener("keydown", function (event) {
+            const code = event.code;
+            if (code === P1_UP_BUTTON) {
+                this.p1.action = UP_ACTION;
+            } else if (code === P1_DOWN_BUTTON) {
+                this.p1.action = DOWN_ACTION;
+            } else if (code === P2_UP_BUTTON) {
+                this.p2.action = UP_ACTION;
+            } else if (code === P2_DOWN_BUTTON) {
+                this.p2.action = DOWN_ACTION;
+            } else if (code === PAUSE_BUTTON) {
+                this.paused = !paused;
+            }
+        }.bind(this));
+
+        window.addEventListener("keyup",function (event) {
+            const code = event.code;
+            if (
+                (code === P1_UP_BUTTON && this.p1.action === UP_ACTION) ||
+                (code === P1_DOWN_BUTTON && this.p1.action === DOWN_ACTION)
+            ) {
+                this.p1.action = STOP_ACTION;
+            } else if (
+                (code === P2_UP_BUTTON && this.p2.action === UP_ACTION) ||
+                (code === P2_DOWN_BUTTON && this.p2.action === DOWN_ACTION)
+            ) {
+                this.p2.action = STOP_ACTION;
+            }
+        }.bind(this));
+    }
+
+    start() {
+        setInterval(this.updateAndDrawState.bind(this), STATE_CHANGE_INTERVAL);
+        this.setupControl();
+    }
+
 }
 
-setInterval(updateAndDrawState, STATE_CHANGE_INTERVAL);
+const game = new Game();
+game.start();
+
